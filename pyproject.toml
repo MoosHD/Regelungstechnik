@@ -1,0 +1,18 @@
+[project]
+name = "regelungstechnik"
+version = "0.1.0"
+description = "Regelungstechnik Toolkit fuer Laplace, Stabilitaet, Reglerentwurf und Plotterstellung."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy",
+  "scipy",
+  "matplotlib",
+  "pandas",
+  "sympy",
+  "click"
+]
+
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"

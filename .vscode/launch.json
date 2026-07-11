@@ -1,0 +1,20 @@
+﻿{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Run Regelungstechnik CLI",
+      "type": "python",
+      "request": "launch",
+      "module": "regelungstechnik",
+      "justMyCode": true
+    },
+    {
+      "name": "Python: pytest",
+      "type": "python",
+      "request": "launch",
+      "purpose": ["debug-test"],
+      "module": "pytest",
+      "args": ["tests"]
+    }
+  ]
+}
