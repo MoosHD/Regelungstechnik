@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterable
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
+from regelungstechnik.stabilitaet import nyquist_kriterium
 
 PLOT_DIR = Path(__file__).resolve().parent.parent / "plots"
 PLOT_DIR.mkdir(exist_ok=True)
@@ -120,6 +121,55 @@ def plot_ortskurve(num: list[float], den: list[float], w_bereich: list[float] | 
     return {"ergebnis": h, "loesungsweg": weg, "plot_pfad": pfad}
 
 
+def plot_nyquist(num: list[float], den: list[float],
+                 w_min: float = 1e-3,
+                 w_max: float = 1e3,
+                 punkte: int = 3000,
+                 dateiname: str = "nyquist.png") -> Dict[str, Any]:
+    analyse = nyquist_kriterium(num, den, w_min=w_min, w_max=w_max, punkte=punkte)
+    ergebnis = analyse["ergebnis"]
+    curve = np.array(ergebnis["nyquist"], dtype=complex)
+
+    fig, ax = _neue_figur()
+    ax.plot(_clean_values(curve.real), _clean_values(curve.imag), label="Nyquist")
+    ax.axhline(0, color='gray', lw=1)
+    ax.axvline(0, color='gray', lw=1)
+    ax.plot(-1, 0, 'rx', markersize=8, label="kritischer Punkt -1")
+
+    if curve.size >= 2:
+        mid = curve.size // 2
+        p0, p1 = curve[max(0, mid - 1)], curve[min(curve.size - 1, mid + 1)]
+        ax.annotate("", xy=(p1.real, p1.imag), xytext=(p0.real, p0.imag),
+                    arrowprops=dict(arrowstyle="->", color="tab:green", lw=1.2))
+
+    stabil_text = "stabil" if ergebnis["stabil"] else "instabil"
+    ax.set_title(f"Nyquist-Ortskurve ({stabil_text})")
+    ax.set_xlabel("Re{L(jw)}")
+    ax.set_ylabel("Im{L(jw)}")
+    ax.legend(loc="best")
+    ax.autoscale(enable=True)
+    # Gleiches Seitenverhaeltnis verhindert vertikales oder horizontales Stauchen.
+    ax.set_aspect('equal', adjustable='datalim')
+    ax.margins(0.05)
+    pfad = _speichern(fig, dateiname)
+
+    weg = list(analyse.get("loesungsweg", []))
+    weg.append(f"Plot gespeichert unter {pfad}")
+    result = {
+        "ergebnis": {
+            "stabil": ergebnis["stabil"],
+            "P": ergebnis["P"],
+            "N_cw": ergebnis["N_cw"],
+            "Z": ergebnis["Z"],
+            "offene_pole_auf_imaginaerachse": ergebnis["offene_pole_auf_imaginaerachse"],
+        },
+        "loesungsweg": weg,
+        "hinweise": analyse.get("hinweise", []),
+        "plot_pfad": pfad,
+    }
+    return result
+
+
 def plot_pol_nullstellen(num: list[float], den: list[float], dateiname: str = "pn_diagramm.png") -> Dict[str, Any]:
     nullstellen = np.roots(num)
     pole = np.roots(den)
@@ -151,6 +201,7 @@ def plot_wurzelortskurve(num: list[float], den: list[float], k_bereich: list[flo
                          k_markierungen: Iterable[float] | None = None,
                          sigma_grenze: float | None = None,
                          daempfung_min: float | None = None,
+                         omega_grenze: float | Iterable[float] | None = None,
                          asymptoten_anzeigen: bool = True) -> Dict[str, Any]:
     if k_bereich is None:
         k_bereich = np.linspace(0.01, 10.0, 500)
@@ -201,6 +252,18 @@ def plot_wurzelortskurve(num: list[float], den: list[float], k_bereich: list[flo
         ax.plot(x, y, ':', color='tab:orange', linewidth=1.2)
         ax.plot(x, -y, ':', color='tab:orange', linewidth=1.2,
                 label=f"Dämpfungsgrenze zeta={daempfung_min:.3g}")
+
+    if omega_grenze is not None:
+        if isinstance(omega_grenze, (int, float, np.integer, np.floating)):
+            omega_werte = [float(omega_grenze)]
+        else:
+            omega_werte = [float(w) for w in omega_grenze]
+        omega_werte = sorted({abs(w) for w in omega_werte if abs(w) > 0.0})
+        if omega_werte:
+            omega_abs = max(omega_werte)
+            ax.axhline(+omega_abs, color='tab:green', linestyle='--', linewidth=1.2,
+                       label=f"Omega-Grenze |omega|={omega_abs:.3g}")
+            ax.axhline(-omega_abs, color='tab:green', linestyle='--', linewidth=1.2)
 
     markierungen = list(k_markierungen) if k_markierungen is not None else []
     for k_mark in markierungen:

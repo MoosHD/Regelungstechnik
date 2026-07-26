@@ -5,3 +5,4 @@ pandas
 sympy
 click
 pytest
+jupyterlab

@@ -3,8 +3,27 @@ from regelungstechnik import (parallelschaltung, reihenschaltung, rueckkopplung,
                               sprungantwort_mit_fex, sprungfaehigkeit_realisierbarkeit,
                               stationaere_abweichung, maximale_ueberschwingweite,
                               ausregelzeit, reglerparameter_nach_verfahren,
-                              wurzelortsauslegung)
-from regelungstechnik.gui import _parse_transfer_function_expression
+                              wurzelortsauslegung, phasenkorrekturglied_auslegung)
+
+
+def _parse_transfer_function_expression(text: str):
+    expr = sp.sympify(text, evaluate=True)
+    s = sp.symbols('s')
+    num, den = sp.fraction(sp.together(expr))
+    num_poly = sp.Poly(sp.expand(num), s)
+    den_poly = sp.Poly(sp.expand(den), s)
+
+    def _normalize(coeffs):
+        result = []
+        for c in coeffs:
+            c = sp.simplify(c)
+            if c.free_symbols:
+                result.append(c)
+            else:
+                result.append(float(sp.nsimplify(c)))
+        return result
+
+    return _normalize(num_poly.all_coeffs()), _normalize(den_poly.all_coeffs())
 
 
 def test_reihenschaltung():
@@ -90,3 +109,20 @@ def test_wurzelortsauslegung_basic():
     assert len(ergebnis["k_empfohlen"]) >= 1
     assert len(ergebnis["pole_tabelle"]) >= 1
     assert "asymptoten" in ergebnis
+
+
+def test_phasenkorrektur_anhebend_basic():
+    result = phasenkorrekturglied_auslegung("anhebend", phi_grad=35.0, omega_c=2.0, K=1.0)
+    ergebnis = result["ergebnis"]
+    assert ergebnis["typ"] == "anhebend"
+    assert ergebnis["phi_grad"] > 0.0
+    assert len(ergebnis["num"]) == 2
+    assert len(ergebnis["den"]) == 2
+
+
+def test_phasenkorrektur_absenkend_basic():
+    result = phasenkorrekturglied_auslegung("absenkend", phi_grad=20.0, omega_c=1.5, K=2.0)
+    ergebnis = result["ergebnis"]
+    assert ergebnis["typ"] == "absenkend"
+    assert ergebnis["phi_grad"] < 0.0
+    assert ergebnis["K"] == 2.0

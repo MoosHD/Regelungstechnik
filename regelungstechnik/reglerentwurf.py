@@ -134,6 +134,72 @@ def reglerparameter_nach_verfahren(reglertyp: str,
     return {"ergebnis": ergebnis, "loesungsweg": weg, "hinweise": hinweise, "plot_pfad": None}
 
 
+def phasenkorrekturglied_auslegung(typ: str,
+                                   phi_grad: float,
+                                   omega_c: float,
+                                   K: float = 1.0) -> Dict[str, Any]:
+    """Legt ein phasenanhebendes oder phasenabsenkendes Korrekturglied aus.
+
+    Typen:
+    - "anhebend": Gk(s) = K * (1 + v*T*s) / (1 + T*s), v > 1
+    - "absenkend": Gk(s) = K * (1 + T*s) / (1 + v*T*s), v > 1
+    """
+    typ_norm = typ.strip().lower()
+    if typ_norm not in {"anhebend", "absenkend"}:
+        raise ValueError("typ muss 'anhebend' oder 'absenkend' sein.")
+    if omega_c <= 0:
+        raise ValueError("omega_c muss > 0 sein.")
+    if K <= 0:
+        raise ValueError("K muss > 0 sein.")
+
+    phi_abs = abs(float(phi_grad))
+    if phi_abs <= 0.0 or phi_abs >= 89.0:
+        raise ValueError("phi_grad muss zwischen 0 und 89 Grad liegen.")
+
+    phi_rad = np.deg2rad(phi_abs)
+    v = float((1.0 + np.sin(phi_rad)) / (1.0 - np.sin(phi_rad)))
+    T = float(1.0 / (omega_c * np.sqrt(v)))
+
+    if typ_norm == "anhebend":
+        num = [float(K * v * T), float(K)]
+        den = [float(T), 1.0]
+        phi_eff = phi_abs
+        formula = "Gk(s) = K*(1+v*T*s)/(1+T*s)"
+    else:
+        num = [float(K * T), float(K)]
+        den = [float(v * T), 1.0]
+        phi_eff = -phi_abs
+        formula = "Gk(s) = K*(1+T*s)/(1+v*T*s)"
+
+    omega_z = float(1.0 / (v * T)) if typ_norm == "anhebend" else float(1.0 / T)
+    omega_p = float(1.0 / T) if typ_norm == "anhebend" else float(1.0 / (v * T))
+
+    weg = [
+        {"title": "Zielvorgabe", "math": f"typ={typ_norm}, phi={phi_eff:.3g} deg, omega_c={omega_c:.6g}",
+         "comment": "Die gewuenschte Phasenkorrektur wird am Auslegungsdurchtritt angegeben."},
+        {"title": "Parameterfaktor", "math": f"v = (1+sin(phi))/(1-sin(phi)) = {v:.6g}",
+         "comment": "Aus der maximalen Phasenanhebung/-absenkung ergibt sich der Faktor v."},
+        {"title": "Zeitkonstante", "math": f"T = 1/(omega_c*sqrt(v)) = {T:.6g}",
+         "comment": "Nullstelle und Pol werden um omega_c angeordnet."},
+        {"title": "Korrekturglied", "math": formula,
+         "comment": f"Ergebnis: num={num}, den={den}"},
+    ]
+
+    ergebnis = {
+        "typ": typ_norm,
+        "K": float(K),
+        "phi_grad": float(phi_eff),
+        "omega_c": float(omega_c),
+        "v": v,
+        "T": T,
+        "omega_nullstelle": omega_z,
+        "omega_pol": omega_p,
+        "num": num,
+        "den": den,
+    }
+    return {"ergebnis": ergebnis, "loesungsweg": weg, "plot_pfad": None}
+
+
 def wurzelortsauslegung(num: list[float], den: list[float],
                        k_start: float = 0.0,
                        k_ende: float = 20.0,
